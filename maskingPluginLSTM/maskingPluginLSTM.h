@@ -24,7 +24,7 @@ public:
 
     MaskingPlugin(const std::string name, bool supports_masking, int mask_value, bool compute_output_and_mask_jointly);
 
-    //layerPlugin(const std::string name, const void* serial_buf, size_t serial_size);
+    MaskingPlugin(const std::string name, const void* serial_buf, size_t serial_size);
 
     // It doesn't make sense to make ProposalPlugin without arguments, so we delete default constructor.
     MaskingPlugin() = delete;
@@ -120,5 +120,4 @@ private:
 
 #endif // PROPOSAL_PLUGIN_H
 REGISTER_TENSORRT_PLUGIN(MASKING_layer_TRT);
-
 
