@@ -1,33 +1,29 @@
-//THIS IS OUR CUSTOM PLUGIN
+
+
 #include "maskingPluginLSTM.h"
-#include "NvInfer.h"
+#include "NvInferPlugin.h"
+#include "masking.h"
 #include <cassert>
 #include <cmath>
 #include <cstring>
 #include <stdio.h>
 #include <vector>
+#define ASSERT assert
 
 using namespace nvinfer1;
-using nvinfer1::plugin::MaskingPlugin;
-using nvinfer1::plugin::MaskingPluginCreator;
+using namespace nvinfer1::plugin;
+//using nvinfer1::plugin::MaskingPlugin;
+//using nvinfer1::plugin::MaskingPluginCreator;
 
 
-
-
-
-
-
-
-// plugin specific constants
 namespace
 {
-static const char* MASKING_PLUGIN_VERSION{"1"};
-static const char* MASKING_PLUGIN_NAME{"MASKING_layer"};
-static const float RPN_STD_SCALING{1.0f};
-} // namespace
+    constexpr const char* S3POOL_PLUGIN_NAME{"maskingLSTM_TRT"};
+    constexpr const char* S3POOL_PLUGIN_VERSION{"001"};
+}
 
 // Static class fields initialization
-//PluginFieldCollection layerPluginCreator::mFC{};
+PluginFieldCollection MaskingPluginCreator::mFC{};
 //std::vector<PluginField> layerPluginCreator::mPluginAttributes;
 
 
@@ -35,22 +31,7 @@ static const float RPN_STD_SCALING{1.0f};
 
 
 ///Serialization/Deserialization APIs: serialize, constructor
-//serializing plugin
-template <typename T>
-void writeToBuffer(char*& buffer, const T& val)
-{
-    *reinterpret_cast<T*>(buffer) = val;
-    buffer += sizeof(T);
-}
 
-//deserializing plugin
-template <typename T>
-T readFromBuffer(const char*& buffer)
-{
-    T val = *reinterpret_cast<const T*>(buffer);
-    buffer += sizeof(T);
-    return val;
-}
 
 size_t layerPlugin::getSerializationSize() const
 {
@@ -61,19 +42,17 @@ void layerPlugin::serialize(void* buffer) const
 {
     char* d = reinterpret_cast<char*>(buffer);
     char* a = d;
-    writeToBuffer<size_t>(a, mInputHeight);
-    writeToBuffer<size_t>(a, mInputWidth);
-    writeToBuffer<size_t>(a, mRpnHeight);
-    writeToBuffer<size_t>(a, mRpnWidth);
-    writeToBuffer<size_t>(a, mRpnStride);
-    writeToBuffer<size_t>(a, mPreNmsTopN);
-    writeToBuffer<size_t>(a, mMaxBoxNum);
-    writeToBuffer<size_t>(a, mAnchorSizeNum);
-    writeToBuffer<size_t>(a, mAnchorRatioNum);
-    writeToBuffer<float>(a, mRpnStdScaling);
-    writeToBuffer<float>(a, mBboxMinSize);
-    writeToBuffer<float>(a, mNmsIouThreshold);
-
+    writeToBuffer<bool>(a, msupports_masking);
+    writeToBuffer<int>(a, mmask_value);         
+    writeToBuffer<bool>(a, mcompute_output_and_mask_jointly);
+    writeToBuffer<int>(a, msamples);
+    writeToBuffer<int>(a,  mtimesteps);
+    writeToBuffer<int>(a, mfeatures);
+    
+    
+    
+    
+    
     for (int i = 0; i < mAnchorSizeNum; ++i)
     {
         writeToBuffer<float>(a, mAnchorSizes[i]);
@@ -109,27 +88,72 @@ MaskingPlugin::MaskingPlugin(const std::string name)
 {
 }
 
-MaskingPlugin::MaskingPlugin(const std::string name, int samples, int timesteps, int features)
-    : mLayerName(name)
-    , msamples(samples)
-    , mtimesteps(timesteps)
-    , mfeatures(features)
+MaskingPlugin::MaskingPlugin(const std::string name,MaskingParams params, int samples=1, int timesteps, int features, bool supports_masking, int mask_value, bool compute_output_and_mask_jointly)
+    : mParams(params)
+    , mLayerName(name)
+    , mSamples(samples)
+    , mTimesteps(timesteps)
+    , mFeatures(features)
+    , nSupports_masking(supports_masking)
+    , mMask_value(mask_value)
+    , nCompute_output_and_mask_jointly(compute_output_and_mask_jointly)
 {
     
 }
 
-MaskingPlugin::MaskingPlugin(const std::string name, bool supports_masking, int mask_value, bool compute_output_and_mask_jointly)
-    : mLayerName(name)
-    , msupports_masking(supports_masking)
-    , mmask_value(mask_value)
-    , mcompute_output_and_mask_jointly(compute_output_and_mask_jointly)
+MaskingPlugin::MaskingPlugin( MaskingParams params int samples=1, int timesteps, int features, bool supports_masking, int mask_value, bool compute_output_and_mask_jointly)
+    : mParams(params)
+    , mSamples(samples)
+    , mTimesteps(timesteps)
+    , mFeatures(features)
+    , nSupports_masking(supports_masking)
+    , mMask_value(mask_value)
+    , nCompute_output_and_mask_jointly(compute_output_and_mask_jointly)
 {
+    
 }
+
+
 MaskingPlugin::~MaskingPlugin() {}
+
+MaskingPlugin(const void* serial_buf, size_t serial_size)
+{
+	const char* d = reinterpret_cast<const char*>(data);
+    const char* a = d;
+    
+    MaskingParams mParams;
+    bool nSupports_masking;
+    int nMask_value;
+    bool nCompute_output_and_mask_jointly;
+       
+    const std::string mLayerName;
+    const char* mPluginNamespace = "";
+    mSamples = read<int>(d);
+    mTimesteps = read<int>(d);
+    mFeatures = read<int>(d);
+    mMask_value = read<int>(d);
+    
+    
+    nSupports_masking = read<bool>(d);
+    nCompute_output_and_mask_jointly = read<bool>(d);
+   /* for (int i=0; i<nBegPad; i++)
+    {
+        mParams.beg_padding.push_back(read<int>(d));
+    }
+
+    nEndPad = read<int>(d);
+    for (int i=0; i<nEndPad; i++)
+    {
+        mParams.end_padding.push_back(read<int>(d));
+    }*/
+
+   
+    assert(d == a + length);
+}
 bool MaskingPlugin::supportsFormat(DataType type, PluginFormat format) const
 {
     // This plugin only supports ordinary floats, and NCHW input format
-    if (type == DataType::kFLOAT && format == PluginFormat::kNCHW)
+    if (type == DataType::int && format == PluginFormat::STF)
     {
         return true;
     }
@@ -293,12 +317,12 @@ int MaskingPlugin::getNbOutputs() const
 
 const char* MaskingPluginCreator::getPluginName() const
 {
-    return PROPOSAL_PLUGIN_NAME;
+    return MASKING_PLUGIN_NAME;
 }
 
 const char* MaskingPluginCreator::getPluginVersion() const
 {
-    return PROPOSAL_PLUGIN_VERSION;
+    return MASKING_PLUGIN_VERSION;
 }
 
 const PluginFieldCollection* MaskingPluginCreator::getFieldNames()
@@ -336,10 +360,10 @@ int MaskingPlugin::initialize()
     return 0;
 }
 
-size_t MaskingPlugin::getWorkspaceSize(int max_batch_size) const
+/*size_t MaskingPlugin::getWorkspaceSize(int max_batch_size) const
 {
     return _get_workspace_size(max_batch_size, mAnchorSizeNum, mAnchorRatioNum, mRpnHeight, mRpnWidth, mMaxBoxNum);
-}
+}*/
 
 void MaskingPlugin::terminate() {}
 
@@ -380,7 +404,6 @@ void MaskingPlugin::attachToContext(
 // Detach the plugin object from its execution context.
 void MaskingPlugin::detachFromContext() {
 	}
-
 
 
 
