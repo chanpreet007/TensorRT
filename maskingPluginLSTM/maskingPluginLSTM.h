@@ -1,6 +1,7 @@
 
-#ifndef Masking_LSTM
-#define Masking_LSTM
+
+#ifndef Masking_LSTM_TRT
+#define Masking_LSTM_TRT
 
 #include "NvInferPlugin.h"
 #include "kernel.h"
@@ -8,6 +9,15 @@
 #include <string>
 #include <vector>
 
+typedef struct
+{
+    
+    std::vector<int> supports_masking;
+    std::vector<int> compute_output_and_mask_jointly;
+        
+}MaskingParams;
+
+using namespace nvinfer1;
 using namespace nvinfer1::plugin;
 
 namespace nvinfer1
@@ -20,13 +30,13 @@ class MaskingPlugin : public IPluginV2Ext
 public:
     MaskingPlugin(const std::string name);
 
-    MaskingPlugin(const std::string name, int samples, int timesteps, int features);
+    MaskingPlugin(const std::string name, MaskingParams params, int samples, int timesteps, int features, bool supports_masking, int mask_value, bool compute_output_and_mask_jointly);
 
-    MaskingPlugin(const std::string name, bool supports_masking, int mask_value, bool compute_output_and_mask_jointly);
+    MaskingPlugin(const std::string name,  MaskingParams params, bool supports_masking, int mask_value, bool compute_output_and_mask_jointly);
 
-    MaskingPlugin(const std::string name, const void* serial_buf, size_t serial_size);
+    MaskingPlugin( const void* serial_buf, size_t serial_size);
 
-    // It doesn't make sense to make ProposalPlugin without arguments, so we delete default constructor.
+    // It doesn't make sense to make MaskingPlugin without arguments, so we delete default constructor.
     MaskingPlugin() = delete;
 
     ~MaskingPlugin() override;
@@ -39,7 +49,7 @@ public:
 
     void terminate() override;
 
-    size_t getWorkspaceSize(int) const override;
+    size_t getWorkspaceSize(int maxBatchSize) const override;
 
     int enqueue(
         int batchSize, const void* const* inputs, void** outputs, void* workspace, cudaStream_t stream) override;
@@ -78,16 +88,31 @@ public:
     void detachFromContext() override;
 
 private:
+     template <typename T>
+    void write(char*& buffer, const T& val) const
+    {
+        std::memcpy(buffer, &val, sizeof(T));
+        buffer += sizeof(T);
+    }
+
+    template <typename T>
+    T read(const char*& buffer)
+    {
+        T val;
+        std::memcpy(&val, buffer, sizeof(T));
+        buffer += sizeof(T);
+        return val;
+    }
    
-    
-    bool msupports_masking;
-    int mmask_value;
-    bool mcompute_output_and_mask_jointly ;
-    int msamples;
-    int mtimesteps;
-    int mfeatures;
+    MaskingParams mParams
+    bool nSupports_masking;
+    int mMask_value;
+    bool nCompute_output_and_mask_jointly;
+    int mSamples;
+    int mTimesteps;
+    int mFeatures;
     const std::string mLayerName;
-    std::string mNamespace;
+    const char* mPluginNamespace = "";
 
 };
 
@@ -110,14 +135,19 @@ public:
 
 private:
     static PluginFieldCollection mFC;
+    MaskingParams params;
+    bool nSupports_masking;
+    int mMask_value;
+    bool nCompute_output_and_mask_jointly;
     static std::vector<PluginField> mPluginAttributes;
-    std::string mNamespace;
+    std::string mPluginNamespace = "";
+    REGISTER_TENSORRT_PLUGIN(MaskingPluginCreator);
 };
 
-} // namespace plugin
+} 
 
-} // namespace nvinfer1
+} 
 
-#endif // PROPOSAL_PLUGIN_H
-REGISTER_TENSORRT_PLUGIN(MASKING_layer_TRT);
+#endif // Masking_LSTM_TRT
+
 
