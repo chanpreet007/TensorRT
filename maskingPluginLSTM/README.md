@@ -26,6 +26,14 @@ class Masking(Layer):
   model.add(tf.keras.layers.LSTM(32))
   output = model(inputs)
   # The time step 3 and 5 will be skipped from LSTM calculation.
+  
+  
+  tf.Tensor(
+[[ True  True  True  True  True  True]
+ [ True  True  True  True  True False]
+ [ True  True  True False False False]], shape=(3, 6), dtype=bool)
+
+As you can see from the printed result, the mask is a 2D boolean tensor with shape (batch_size, sequence_length), where each individual False entry indicates that the corresponding timestep should be ignored during processing.
   ```
   See [the masking and padding
   guide](https://www.tensorflow.org/guide/keras/masking_and_padding)
