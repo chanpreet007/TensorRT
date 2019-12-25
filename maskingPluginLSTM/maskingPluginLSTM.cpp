@@ -69,7 +69,7 @@ void layerPlugin::serialize(void* buffer) const
 IPluginV2Ext* MaskingPluginCreator::deserializePlugin(const char* name, const void* serialData, size_t serialLength)
 {
     // This object will be deleted when the network is destroyed,
-    IPluginV2Ext* plugin = new layerPlugin(name, serialData, serialLength);
+    IPluginV2Ext* plugin = new MaskingPlugin(name, serialData, serialLength);
     plugin->setPluginNamespace(mNamespace.c_str());
     return plugin;
 }
