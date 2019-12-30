@@ -39,7 +39,7 @@ The mask is a 2D boolean tensor with shape (batch_size, sequence_length), where 
 So, Basically we are trying to implement the Making layer as a custom plugin.
 
 Initially this masking layer is supporting 2d tensors only as input features and it will support only layers  supporting masking eg. LSTM etc
-but in future we are lookng to extend its compatibility with other configuration too.
+but in future we are lookng to extend its compatibility with other configurations too.
   
   
   
